@@ -1,49 +1,49 @@
 # SlideWhisperer 🐴
 
-Zet een Google Drive map met PDF-slides automatisch om naar een interactief HTML-studieoverzicht, aangedreven door de Gemini API.
+Automatically convert a Google Drive folder of PDF slides into an interactive HTML study guide, powered by the Gemini API.
 
 ---
 
-## Vereisten
+## Requirements
 
 - Python 3.11+
-- Een Google Cloud project met:
-  - **Gemini API** ingeschakeld
-  - **Google Drive API** ingeschakeld
-- Een Cloudflare account met een domein (voor publieke toegang via tunnel)
+- A Google Cloud project with:
+  - **Gemini API** enabled
+  - **Google Drive API** enabled
+- A Cloudflare account with a domain (for public access via tunnel)
 
 ---
 
 ## 1. Google Gemini API key
 
-1. Ga naar [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Maak een nieuwe API key aan
-3. Bewaar de key — je hebt hem nodig in `.env`
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Create a new API key
+3. Save the key — you'll need it in `.env`
 
 ---
 
-## 2. Google Service Account (Drive-toegang)
+## 2. Google Service Account (Drive access)
 
-De app leest PDF-bestanden uit een gedeelde Google Drive map via een service account (server-to-server, geen browserlogin nodig).
+The app reads PDF files from a shared Google Drive folder via a service account (server-to-server, no browser login required).
 
-1. Ga naar [Google Cloud Console](https://console.cloud.google.com/) → **IAM & Admin** → **Service Accounts**
-2. Klik **Create Service Account** → geef een naam (bijv. `slidewhisperer-drive`)
-3. Klik op de aangemaakte service account → tabblad **Keys** → **Add Key** → **JSON**
-4. Download het JSON-bestand en sla het op als `service_account.json` in de projectmap
-5. Noteer het **e-mailadres** van het service account (bijv. `slidewhisperer-drive@jouw-project.iam.gserviceaccount.com`)
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → **IAM & Admin** → **Service Accounts**
+2. Click **Create Service Account** → give it a name (e.g. `slidewhisperer-drive`)
+3. Click on the created service account → **Keys** tab → **Add Key** → **JSON**
+4. Download the JSON file and save it as `service_account.json` in the project folder
+5. Note the **email address** of the service account (e.g. `slidewhisperer-drive@your-project.iam.gserviceaccount.com`)
 
-**Google Drive map delen met het service account:**
+**Sharing a Drive folder with the service account:**
 
-Voor elke Drive-map die je wil verwerken:
-1. Rechtsklik op de map in Google Drive → **Delen**
-2. Voeg het e-mailadres van het service account toe als **Viewer**
+For each Drive folder you want to process:
+1. Right-click the folder in Google Drive → **Share**
+2. Add the service account email address as a **Viewer**
 
 ---
 
-## 3. Installatie
+## 3. Installation
 
 ```bash
-git clone https://github.com/jouw-gebruiker/slidewhisperer.git
+git clone https://github.com/johantre/slidewhisperer.git
 cd slidewhisperer
 
 python3 -m venv .venv
@@ -51,33 +51,33 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Secrets aanmaken (eenmalig, nooit in git):**
+**Create secrets (one-time, never in git):**
 
 ```bash
 cp .env.example .env
-# Vul .env in met je Gemini API key en andere waarden
+# Fill in your Gemini API key and other values
 nano .env
 ```
 
-Zet ook het gedownloade service account JSON-bestand in de projectmap:
+Also place the downloaded service account JSON file in the project folder:
 ```bash
-mv ~/Downloads/jouw-project-xxxx.json service_account.json
+mv ~/Downloads/your-project-xxxx.json service_account.json
 ```
 
 ---
 
-## 4. Lokaal draaien
+## 4. Running locally
 
 ```bash
 source .venv/bin/activate
 python3 app.py
 ```
 
-App is bereikbaar op `http://localhost:5001`
+App is available at `http://localhost:5001`
 
 ---
 
-## 5. Productie als systemd service
+## 5. Production as a systemd service
 
 ```bash
 sudo cp slidewhisperer.service /etc/systemd/system/
@@ -86,18 +86,18 @@ sudo systemctl enable slidewhisperer
 sudo systemctl start slidewhisperer
 ```
 
-Logs volgen:
+Follow logs:
 ```bash
 sudo journalctl -u slidewhisperer -f
 ```
 
 ---
 
-## 6. Cloudflare Tunnel (publieke toegang)
+## 6. Cloudflare Tunnel (public access)
 
-Zodat de app bereikbaar is via een eigen domein (bijv. `slidewhisperer.jouwdomein.be`) zonder poorten open te zetten.
+Makes the app accessible via your own domain (e.g. `slidewhisperer.yourdomain.com`) without opening ports.
 
-### Eenmalige installatie van cloudflared
+### One-time installation of cloudflared
 
 ```bash
 # Debian/Ubuntu
@@ -106,73 +106,73 @@ echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudf
 sudo apt update && sudo apt install cloudflared
 ```
 
-### Tunnel aanmaken (via Cloudflare dashboard)
+### Creating a tunnel (via Cloudflare dashboard)
 
-1. Ga naar [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → **Networks** → **Tunnels**
-2. Klik **Create a tunnel** → geef een naam (bijv. `mijn-server`)
-3. Ga naar **Public Hostnames** → **Add a public hostname**:
+1. Go to [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) → **Networks** → **Tunnels**
+2. Click **Create a tunnel** → give it a name (e.g. `my-server`)
+3. Go to **Public Hostnames** → **Add a public hostname**:
    - Subdomain: `slidewhisperer`
-   - Domain: `jouwdomein.be`
+   - Domain: `yourdomain.com`
    - Service: `http://localhost:5001`
-4. Kopieer de tunnel token
+4. Copy the tunnel token
 
-### Tunnel installeren als service
+### Installing the tunnel as a service
 
-Als er al een cloudflared service draait (bijv. voor andere apps op dezelfde server), voeg dan enkel de extra hostname toe aan de bestaande tunnel via het dashboard. Geen nieuwe service nodig.
+If a cloudflared service is already running (e.g. for other apps on the same server), simply add the extra hostname to the existing tunnel via the dashboard. No new service needed.
 
-Als er nog geen service is:
+If no service exists yet:
 ```bash
-sudo cloudflared service install <JOUW_TUNNEL_TOKEN>
+sudo cloudflared service install <YOUR_TUNNEL_TOKEN>
 sudo systemctl start cloudflared
 ```
 
-### Toegang beveiligen met Google SSO (optioneel maar aanbevolen)
+### Securing access with Google SSO (optional but recommended)
 
-1. Ga naar Zero Trust → **Access** → **Applications** → **Add an application**
-2. Kies **Self-hosted**
-3. Stel de URL in op `slidewhisperer.jouwdomein.be`
-4. Voeg een **Google** identity provider toe en definieer wie toegang mag krijgen (bijv. specifieke e-mailadressen)
+1. Go to Zero Trust → **Access** → **Applications** → **Add an application**
+2. Choose **Self-hosted**
+3. Set the URL to `slidewhisperer.yourdomain.com`
+4. Add a **Google** identity provider and define who gets access (e.g. specific email addresses)
 
 ---
 
-## 7. Updates deployen
+## 7. Deploying updates
 
 ```bash
-cd /home/jouw-gebruiker/slidewhisperer
+cd /home/your-user/slidewhisperer
 git pull
 sudo systemctl restart slidewhisperer
 ```
 
-Secrets (`.env` en `service_account.json`) blijven onaangeroerd — die zitten niet in git.
+Secrets (`.env` and `service_account.json`) are left untouched — they are not in git.
 
 ---
 
-## Bestandsstructuur
+## File structure
 
 ```
 slidewhisperer/
-├── app.py                    # Flask applicatie
+├── app.py                    # Flask application
 ├── templates/
 │   └── index.html            # Web UI
 ├── prompts/
-│   └── system_prompt.md      # Aanpasbare Gemini prompt (zit WEL in git)
+│   └── system_prompt.md      # Customisable Gemini prompt (IS in git)
 ├── requirements.txt
 ├── slidewhisperer.service    # systemd unit file
-├── .env.example              # Template voor .env (geen echte waarden)
+├── .env.example              # Template for .env (no real values)
 ├── .gitignore
 │
-├── .env                      # ← NIET in git (bevat API key)
-└── service_account.json      # ← NIET in git (bevat credentials)
+├── .env                      # ← NOT in git (contains API key)
+└── service_account.json      # ← NOT in git (contains credentials)
 ```
 
 ---
 
-## Gevoelige bestanden
+## Sensitive files
 
-| Bestand | In git? | Uitleg |
+| File | In git? | Notes |
 |---|---|---|
-| `.env` | ❌ Nooit | Bevat Gemini API key |
-| `service_account.json` | ❌ Nooit | Google Drive credentials |
-| `cache/` | ❌ Nooit | Gedownloade PDFs |
-| `output/` | ❌ Nooit | Gegenereerde HTML + PDFs |
-| `prompts/system_prompt.md` | ✅ Ja | Prompt-tekst, geen secrets |
+| `.env` | ❌ Never | Contains Gemini API key |
+| `service_account.json` | ❌ Never | Google Drive credentials |
+| `cache/` | ❌ Never | Downloaded PDFs |
+| `output/` | ❌ Never | Generated HTML + PDFs |
+| `prompts/system_prompt.md` | ✅ Yes | Prompt text, no secrets |
