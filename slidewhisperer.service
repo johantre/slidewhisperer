@@ -1,0 +1,15 @@
+[Unit]
+Description=SlideWhisperer — PDF to study guide
+After=network.target
+
+[Service]
+Type=simple
+User=johan
+WorkingDirectory=/home/johan/slidewhisperer
+EnvironmentFile=/home/johan/slidewhisperer/.env
+ExecStart=/home/johan/slidewhisperer/.venv/bin/python app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

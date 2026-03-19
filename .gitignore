@@ -1,0 +1,10 @@
+# Secrets & credentials
+.env
+*.json
+uploads/
+output/
+cache/
+__pycache__/
+*.pyc
+.venv/
+.idea/

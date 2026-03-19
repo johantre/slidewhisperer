@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlideWhisperer 🐴</title>
+  <style>
+    :root {
+      --blauw:  #1a3a5c;
+      --accent: #2e6da4;
+      --bg:     #f8fafc;
+      --rand:   #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      gap: 1.5rem;
+    }
+
+    /* ── Main wrapper (beide panelen, aanpasbare breedte) ── */
+    #main-wrapper {
+      position: relative;
+      width: min(1400px, 100%);
+      min-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .width-resizer {
+      position: absolute;
+      right: -10px;
+      top: 0; bottom: 0;
+      width: 18px;
+      cursor: ew-resize;
+      z-index: 10;
+    }
+    .width-resizer::after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 15%; bottom: 15%;
+      width: 2px;
+      background: var(--rand);
+      border-radius: 2px;
+      transition: background .15s;
+    }
+    .width-resizer:hover::after { background: var(--accent); }
+
+    /* ── Main card ── */
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      padding: 1.4rem 2.5rem 1.6rem;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .card-inner {
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .logo { font-size: 2rem; text-align: center; margin-bottom: .2rem; }
+
+    h1 { text-align: center; color: var(--blauw); font-size: 1.5rem; margin-bottom: .2rem; }
+
+    .tagline { text-align: center; color: #64748b; font-size: .85rem; margin-bottom: 1.2rem; }
+
+    label { display: block; font-weight: 600; color: var(--blauw); margin-bottom: .5rem; font-size: .95rem; }
+
+    input[type="text"] {
+      width: 100%;
+      padding: .75rem 1rem;
+      border: 2px solid var(--rand);
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color .2s;
+      margin-bottom: 1.2rem;
+    }
+    input[type="text"]:focus { outline: none; border-color: var(--accent); }
+
+    button {
+      width: 100%;
+      padding: .85rem;
+      background: linear-gradient(135deg, var(--blauw), var(--accent));
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    button:hover:not(:disabled) { opacity: .88; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+
+    #status {
+      margin-top: 1.5rem;
+      padding: 1rem 1.2rem;
+      border-radius: 8px;
+      font-size: .92rem;
+      display: none;
+    }
+    #status.bezig { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; display: block; }
+    #status.klaar { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; display: block; }
+    #status.fout  { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; display: block; }
+    #status a { font-weight: 700; color: inherit; }
+
+    .hint { margin-top: 1.5rem; font-size: .8rem; color: #94a3b8; text-align: center; line-height: 1.6; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: .4rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Overzichten paneel ── */
+    .results-list {
+      padding: .5rem .75rem;
+    }
+    .result-item {
+      display: flex;
+      align-items: center;
+      padding: .4rem .5rem;
+      border-radius: 6px;
+      font-size: .85rem;
+      gap: .6rem;
+    }
+    .result-item:hover { background: #f8fafc; }
+    .ri-dot   { color: #94a3b8; font-size: .65rem; flex-shrink: 0; }
+    .ri-link  { font-weight: 600; color: var(--accent); text-decoration: none; flex: 1; }
+    .ri-link:hover { text-decoration: underline; }
+    .ri-time  { color: #94a3b8; font-size: .78rem; flex-shrink: 0; margin-right: .3rem; }
+    .ri-del {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: .1rem .3rem;
+      border-radius: 4px;
+      width: auto;
+      color: #94a3b8;
+      transition: color .15s;
+    }
+    .ri-del:hover:not(:disabled) { color: #ef4444; opacity: 1; }
+    .ri-del:disabled { opacity: .35; cursor: default; }
+    .results-empty { color: #94a3b8; font-size: .83rem; padding: .4rem .5rem; }
+
+    /* ── Preflights tab ── */
+    #panel-preflights { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
+    .pf-empty { color: #94a3b8; font-size: .83rem; padding: .5rem; }
+    .pf-item {
+      display: flex;
+      align-items: center;
+      padding: .35rem .5rem;
+      border-radius: 6px;
+      gap: .6rem;
+      font-size: .83rem;
+    }
+    .pf-item:hover { background: #f8fafc; }
+    .pf-link { font-weight: 600; color: var(--accent); text-decoration: none; flex: 1; cursor: pointer; }
+    .pf-link:hover { text-decoration: underline; }
+    .pf-time { color: #94a3b8; font-size: .78rem; flex-shrink: 0; }
+
+    /* ── Werkvenster ── */
+    .werkvenster-wrapper { width: 100%; }
+
+    details {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    summary {
+      padding: .85rem 1.2rem;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+    }
+    summary::-webkit-details-marker { display: none; }
+
+    .summary-toggle {
+      font-size: .7rem;
+      color: #94a3b8;
+      transition: transform .2s;
+    }
+    details[open] .summary-toggle { transform: rotate(90deg); }
+
+    .summary-title {
+      font-weight: 600;
+      color: var(--blauw);
+      font-size: .95rem;
+      flex-shrink: 0;
+    }
+
+    .summary-status {
+      font-size: .82rem;
+      color: #1e40af;
+      flex: 1;
+      padding: 0 .5rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .summary-btns {
+      display: flex;
+      gap: .5rem;
+      flex-shrink: 0;
+    }
+
+    .btn-sum {
+      padding: .4rem .9rem;
+      background: #f1f5f9;
+      color: var(--blauw);
+      border: 1px solid var(--rand);
+      border-radius: 6px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      width: auto;
+      transition: background .15s;
+    }
+    .btn-sum:hover:not(:disabled) { background: #e2e8f0; opacity: 1; }
+    .btn-sum:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Editor body ── */
+    .werkvenster-body {
+      padding: 1rem;
+      border-top: 1px solid var(--rand);
+    }
+
+    .editor-grid {
+      display: flex;
+      height: 480px;
+      gap: 0;
+    }
+
+    .editor-col {
+      display: flex;
+      flex-direction: column;
+      flex: none;
+      width: 50%;
+      min-width: 160px;
+      overflow: hidden;
+    }
+
+    .preview-col {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 160px;
+      overflow: hidden;
+    }
+
+    .pane-label {
+      font-size: .75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      padding: 0 0 .4rem 2px;
+      flex-shrink: 0;
+    }
+
+    #prompt-editor {
+      flex: 1;
+      font-family: 'Consolas', 'Fira Code', monospace;
+      font-size: .82rem;
+      line-height: 1.6;
+      border: 1px solid var(--rand);
+      border-radius: 8px;
+      padding: .75rem;
+      resize: none;
+      color: #1e293b;
+      background: #fafafa;
+      overflow-y: auto;
+    }
+    #prompt-editor:focus { outline: none; border-color: var(--accent); }
+
+    #prompt-preview {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid var(--rand);
+      border-radius: 8px;
+      padding: .75rem 1rem;
+      font-size: .84rem;
+      line-height: 1.6;
+      color: #1e293b;
+      background: #fff;
+    }
+    #prompt-preview h1, #prompt-preview h2, #prompt-preview h3 { color: var(--blauw); margin: .75rem 0 .2rem; }
+    #prompt-preview h3 { font-size: .9rem; }
+    #prompt-preview code { background: #f1f5f9; padding: .1em .3em; border-radius: 3px; font-size: .82em; font-family: monospace; }
+    #prompt-preview pre  { background: #f1f5f9; padding: .6rem .75rem; border-radius: 6px; overflow-x: auto; margin: .4rem 0; }
+    #prompt-preview pre code { background: none; padding: 0; font-size: .78rem; }
+    #prompt-preview ul   { margin: .2rem 0 .4rem 1.4rem; }
+    #prompt-preview li   { margin-bottom: .15rem; }
+    #prompt-preview hr   { border: none; border-top: 1px solid var(--rand); margin: .6rem 0; }
+    #prompt-preview p    { margin: .3rem 0; }
+    #prompt-preview strong { font-weight: 700; }
+
+    /* ── Tabs ── */
+    .pane-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: .4rem;
+      flex-shrink: 0;
+    }
+    .pane-tab {
+      padding: .28rem .75rem;
+      font-size: .78rem;
+      font-weight: 600;
+      border: 1px solid var(--rand);
+      background: #f8fafc;
+      color: #64748b;
+      cursor: pointer;
+      width: auto;
+      transition: background .15s;
+    }
+    .pane-tab:first-child { border-radius: 6px 0 0 6px; }
+    .pane-tab:last-child  { border-radius: 0 6px 6px 0; border-left: none; }
+    .pane-tab.active      { background: var(--blauw); color: #fff; border-color: var(--blauw); }
+    .pane-tab:hover:not(.active) { background: #e2e8f0; opacity: 1; }
+
+    .panel-content { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ── History panel ── */
+    #history-list {
+      overflow-y: auto;
+      max-height: 150px;
+      border: 1px solid var(--rand);
+      border-radius: 8px;
+      padding: .25rem;
+      margin-bottom: .5rem;
+      flex-shrink: 0;
+    }
+    .hist-item {
+      display: flex;
+      align-items: center;
+      padding: .35rem .5rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: .82rem;
+      gap: .5rem;
+    }
+    .hist-item:hover   { background: #f1f5f9; }
+    .hist-item.selected { background: #eff6ff; }
+    .hist-item .hi-time { flex: 1; color: #1e293b; }
+    .hist-item .hi-dot  { color: #94a3b8; font-size: .65rem; }
+    .hist-restore {
+      padding: .18rem .5rem;
+      font-size: .75rem;
+      background: #f1f5f9;
+      border: 1px solid var(--rand);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--blauw);
+      font-weight: 600;
+      white-space: nowrap;
+      width: auto;
+    }
+    .hist-restore:hover { background: #e2e8f0; opacity: 1; }
+
+    #history-diff {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid var(--rand);
+      border-radius: 8px;
+      font-family: 'Consolas', monospace;
+      font-size: .75rem;
+      line-height: 1.5;
+    }
+    .diff-add     { background: #dcfce7; color: #166534; white-space: pre-wrap; word-break: break-all; padding: 0 .6rem; display: block; }
+    .diff-remove  { background: #fee2e2; color: #991b1b; white-space: pre-wrap; word-break: break-all; padding: 0 .6rem; display: block; }
+    .diff-hunk    { background: #eff6ff; color: #1e40af; padding: 0 .6rem; display: block; }
+    .diff-context { color: #94a3b8;      white-space: pre-wrap; word-break: break-all; padding: 0 .6rem; display: block; }
+    .diff-empty   { color: #94a3b8; font-style: italic; padding: .5rem .6rem; }
+
+    /* ── Resizer ── */
+    .resizer {
+      flex: none;
+      width: 12px;
+      cursor: col-resize;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .resizer::after {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--rand);
+      border-radius: 2px;
+      transition: background .15s;
+    }
+    .resizer:hover::after, .resizer.dragging::after { background: var(--accent); }
+
+    /* ── Hoogte-resizer (onder editor-grid) ── */
+    .height-resizer {
+      height: 10px;
+      cursor: ns-resize;
+      position: relative;
+      flex-shrink: 0;
+      margin: 2px 0;
+    }
+    .height-resizer::after {
+      content: '';
+      position: absolute;
+      left: 15%; right: 15%;
+      top: 4px;
+      height: 2px;
+      background: var(--rand);
+      border-radius: 2px;
+      transition: background .15s;
+    }
+    .height-resizer:hover::after { background: var(--accent); }
+
+    /* ── Preflight result ── */
+    #preflight-container { margin-top: 1rem; display: none; }
+
+    #preflight-frame {
+      width: 100%;
+      height: 680px;
+      border: 1px solid var(--rand);
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="main-wrapper">
+  <div class="width-resizer" id="width-resizer"></div>
+
+  <!-- ── Main card ── -->
+  <div class="card">
+    <div class="card-inner">
+      <div class="logo">🐴</div>
+      <h1>SlideWhisperer</h1>
+      <p class="tagline">Sust wilde PDF-slides om tot iets wat jouw brein écht begrijpt.</p>
+
+      <label for="drive-url">Google Drive map-link</label>
+      <input type="text" id="drive-url"
+             placeholder="https://drive.google.com/drive/folders/..."
+             autocomplete="off">
+
+      <button id="btn-generate" onclick="generate()">✨ Genereer studieoverzicht</button>
+
+      <div id="status"></div>
+
+      <p class="hint">
+        Zorg dat de map gedeeld is met het service account.<br>
+        Verwerking duurt 1–3 minuten afhankelijk van het aantal PDFs.
+      </p>
+    </div>
+  </div>
+
+  <!-- ── Resultaten ── -->
+  <details id="overzichten">
+    <summary>
+      <span class="summary-toggle">▶</span>
+      <span class="summary-title">📋 Resultaten</span>
+    </summary>
+    <div class="results-list" id="results-list">
+      <p class="results-empty">Laden…</p>
+    </div>
+  </details>
+
+  <!-- ── Prompt Werkvenster ── -->
+  <div class="werkvenster-wrapper">
+
+    <details id="werkvenster">
+      <summary>
+        <span class="summary-toggle">▶</span>
+        <span class="summary-title">⚙️ Prompt Werkvenster</span>
+        <span class="summary-status" id="pf-status-inline"></span>
+        <div class="summary-btns" onclick="event.stopPropagation()">
+          <button class="btn-sum" onclick="savePrompt()">💾 Opslaan</button>
+          <button class="btn-sum" id="btn-preflight" onclick="runPreflight()">🚀 Preflight</button>
+        </div>
+      </summary>
+
+      <div class="werkvenster-body">
+        <div class="editor-grid" id="editor-grid">
+
+          <div class="editor-col">
+            <div class="pane-label">✏️ Editor</div>
+            <textarea id="prompt-editor" spellcheck="false"
+                      placeholder="Prompt wordt geladen…"></textarea>
+          </div>
+
+          <div class="resizer" id="resizer"></div>
+
+          <div class="preview-col">
+            <div class="pane-tabs">
+              <button class="pane-tab active" id="tab-preview"    onclick="showTab('preview')">👁️ Preview</button>
+              <button class="pane-tab"        id="tab-history"    onclick="showTab('history')">📜 Geschiedenis</button>
+              <button class="pane-tab"        id="tab-preflights" onclick="showTab('preflights')">🔬 Preflights</button>
+            </div>
+            <div id="panel-preview" class="panel-content">
+              <div id="prompt-preview"></div>
+            </div>
+            <div id="panel-history" class="panel-content" style="display:none">
+              <div id="history-list"><p class="diff-empty">Laden…</p></div>
+              <div id="history-diff"><p class="diff-empty">Selecteer een versie om de wijzigingen te zien.</p></div>
+            </div>
+            <div id="panel-preflights" style="display:none">
+              <p class="pf-empty">Laden…</p>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="height-resizer" id="height-resizer"></div>
+
+        <div id="preflight-container">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem">
+            <button class="btn-sum" onclick="document.getElementById('preflight-frame').contentWindow.print()">🖨️ Afdrukken</button>
+          </div>
+          <iframe id="preflight-frame"></iframe>
+        </div>
+      </div>
+    </details>
+  </div><!-- /.werkvenster-wrapper -->
+  </div><!-- /#main-wrapper -->
+
+  <script>
+    // ── Genereer ──────────────────────────────────────────────────────────────
+    let pollInterval = null;
+
+    async function generate() {
+      const url = document.getElementById("drive-url").value.trim();
+      const btn = document.getElementById("btn-generate");
+      if (!url) { showStatus("fout", "Plak eerst een Google Drive map-link."); return; }
+
+      btn.disabled = true;
+      showStatus("bezig", '<span class="spinner"></span> Job wordt gestart…');
+
+      try {
+        const resp = await fetch("/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ drive_url: url }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || data.error) {
+          showStatus("fout", "❌ " + (data.error || "Onbekende fout."));
+          btn.disabled = false;
+          return;
+        }
+        showStatus("bezig", '<span class="spinner"></span> PDFs worden verwerkt door Gemini… even geduld.');
+        pollInterval = setInterval(() => pollStatus(data.job_id), 3000);
+      } catch (e) {
+        showStatus("fout", "❌ Verbindingsfout: " + e.message);
+        btn.disabled = false;
+      }
+    }
+
+    async function pollStatus(jobId) {
+      try {
+        const resp = await fetch(`/status/${jobId}`);
+        if (resp.status === 404) {
+          clearInterval(pollInterval);
+          showStatus("fout", "❌ Job niet gevonden (server herstart?). Probeer opnieuw.");
+          document.getElementById("btn-generate").disabled = false;
+          return;
+        }
+        const data = await resp.json();
+        if (data.status === "done") {
+          clearInterval(pollInterval);
+          showStatus("klaar", `✅ Klaar! <a href="${data.url}" target="pdf-viewer">Open je studieoverzicht →</a>`);
+          document.getElementById("btn-generate").disabled = false;
+        } else if (data.status === "error") {
+          clearInterval(pollInterval);
+          showStatus("fout", "❌ " + (data.error || "Onbekende fout."));
+          document.getElementById("btn-generate").disabled = false;
+        }
+      } catch (e) { /* netwerk-hik */ }
+    }
+
+    document.getElementById("drive-url").addEventListener("keydown", e => {
+      if (e.key === "Enter") generate();
+    });
+
+    // ── Overzichten ───────────────────────────────────────────────────────────
+    document.getElementById("overzichten").addEventListener("toggle", function() {
+      if (this.open) loadResults();
+    });
+
+    async function loadResults() {
+      const resp    = await fetch("/results");
+      const results = await resp.json();
+      const full    = results.filter(r => !r.is_preflight);
+      const el      = document.getElementById("results-list");
+
+      if (!full.length) {
+        el.innerHTML = '<p class="results-empty">Nog geen overzichten gegenereerd.</p>';
+        return;
+      }
+
+      el.innerHTML = full.map(r => {
+        const isLast = full.length === 1;
+        const del = isLast
+          ? `<button class="ri-del" disabled title="Laatste resultaat — kan niet verwijderd worden">🔒</button>`
+          : `<button class="ri-del" onclick="deleteResult('${r.id}')" title="Verwijderen">🗑️</button>`;
+        return `
+          <div class="result-item" id="ri-${r.id}">
+            <span class="ri-dot">●</span>
+            <a class="ri-link" href="${r.url}" target="pdf-viewer">🔗 ${escHtml(r.id)}</a>
+            <span class="ri-time">${relTime(new Date(r.mtime * 1000).toISOString())}</span>
+            ${del}
+          </div>`;
+      }).join("");
+    }
+
+    async function deleteResult(id) {
+      if (!confirm(`"${id}" verwijderen?`)) return;
+      const resp = await fetch(`/results/${id}`, { method: "DELETE" });
+      const data = await resp.json();
+      if (data.ok) { loadResults(); }
+      else { alert(data.error || "Verwijderen mislukt."); }
+    }
+
+    async function loadPreflightList() {
+      const resp    = await fetch("/results");
+      const results = await resp.json();
+      const pfs     = results.filter(r => r.is_preflight);
+      const el      = document.getElementById("panel-preflights");
+
+      if (!pfs.length) {
+        el.innerHTML = '<p class="pf-empty">Nog geen preflight resultaten.</p>';
+        return;
+      }
+
+      el.innerHTML = pfs.map(r => `
+        <div class="pf-item">
+          <span class="pf-link" onclick="loadPreflight('${r.url}')">🔬 ${escHtml(r.id)}</span>
+          <span class="pf-time">${relTime(new Date(r.mtime * 1000).toISOString())}</span>
+          <button class="ri-del" onclick="deletePreflight('${r.id}')" title="Verwijderen">🗑️</button>
+        </div>`).join("");
+    }
+
+    function loadPreflight(url) {
+      document.getElementById("preflight-container").style.display = "block";
+      document.getElementById("preflight-frame").src = url;
+      showPFStatus("🔬 Vorige preflight geladen.");
+    }
+
+    async function deletePreflight(id) {
+      if (!confirm(`Preflight "${id}" verwijderen?`)) return;
+      const resp = await fetch(`/results/${id}`, { method: "DELETE" });
+      const data = await resp.json();
+      if (data.ok) { loadPreflightList(); }
+      else { alert(data.error || "Verwijderen mislukt."); }
+    }
+
+    // Laad resultaten bij pagina-load (paneel hoeft niet open te zijn)
+    loadResults();
+
+    // Na een succesvolle generatie: lijst verversen
+    function showStatus(type, html) {
+      const el = document.getElementById("status");
+      el.className = type;
+      el.innerHTML = html;
+      if (type === "klaar") loadResults();
+    }
+
+    // ── Werkvenster ───────────────────────────────────────────────────────────
+    document.getElementById("werkvenster").addEventListener("toggle", async function () {
+      if (this.open && !document.getElementById("prompt-editor").value) {
+        await loadPrompt();
+      }
+    });
+
+    async function loadPrompt() {
+      const resp = await fetch("/prompt");
+      const text = await resp.text();
+      document.getElementById("prompt-editor").value = text;
+      updatePreview();
+    }
+
+    document.getElementById("prompt-editor").addEventListener("input", updatePreview);
+
+    function updatePreview() {
+      const text = document.getElementById("prompt-editor").value;
+      document.getElementById("prompt-preview").innerHTML = renderMarkdown(text);
+    }
+
+    async function savePrompt() {
+      const content = document.getElementById("prompt-editor").value;
+      const resp = await fetch("/prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const data = await resp.json();
+      showPFStatus(data.ok ? "✅ Opgeslagen." : "❌ " + (data.error || "Fout."));
+      if (data.ok && document.getElementById("tab-history").classList.contains("active")) {
+        loadHistory();
+      }
+    }
+
+    // ── Tabs ─────────────────────────────────────────────────────────────────
+    function showTab(name) {
+      ["preview", "history", "preflights"].forEach(t => {
+        document.getElementById("panel-" + t).style.display = t === name ? "flex" : "none";
+        document.getElementById("tab-" + t).classList.toggle("active", t === name);
+      });
+      if (name === "history")    loadHistory();
+      if (name === "preflights") loadPreflightList();
+    }
+
+    // ── History ───────────────────────────────────────────────────────────────
+    async function loadHistory() {
+      const resp = await fetch("/history");
+      const commits = await resp.json();
+      const list = document.getElementById("history-list");
+
+      if (!commits.length) {
+        list.innerHTML = '<p class="diff-empty">Nog geen opgeslagen versies.</p>';
+        return;
+      }
+
+      list.innerHTML = commits.map((c, i) => `
+        <div class="hist-item" id="hi-${c.hash}" onclick="selectVersion('${c.hash}', '${c.timestamp}')">
+          <span class="hi-dot">${i === 0 ? "●" : "○"}</span>
+          <span class="hi-time">${i === 0 ? "Huidig" : relTime(c.timestamp)}</span>
+          ${i > 0 ? `<button class="hist-restore" onclick="restoreVersion('${c.hash}', event)">↩️ Herstel</button>` : ""}
+        </div>`).join("");
+    }
+
+    async function selectVersion(hash, timestamp) {
+      document.querySelectorAll(".hist-item").forEach(el => el.classList.remove("selected"));
+      document.getElementById("hi-" + hash)?.classList.add("selected");
+
+      const diffEl = document.getElementById("history-diff");
+      diffEl.innerHTML = '<p class="diff-empty">Diff laden…</p>';
+
+      const resp = await fetch(`/history/${hash}/diff`);
+      const diff = await resp.text();
+      diffEl.innerHTML = renderDiff(diff);
+    }
+
+    async function restoreVersion(hash, e) {
+      e.stopPropagation();
+      const resp = await fetch(`/history/${hash}`);
+      const text = await resp.text();
+      document.getElementById("prompt-editor").value = text;
+      updatePreview();
+      showTab("preview");
+      showPFStatus("↩️ Versie hersteld — klik Opslaan om te bevestigen.");
+    }
+
+    function relTime(isoStr) {
+      const diff = Date.now() - new Date(isoStr).getTime();
+      const min = Math.floor(diff / 60000);
+      if (min < 1)  return "zojuist";
+      if (min < 60) return `${min} min geleden`;
+      const hrs = Math.floor(min / 60);
+      if (hrs < 24) return `${hrs} uur geleden`;
+      const days = Math.floor(hrs / 24);
+      if (days === 1) return "gisteren";
+      if (days < 7)  return `${days} dagen geleden`;
+      return new Date(isoStr).toLocaleDateString("nl-BE");
+    }
+
+    function renderDiff(diffText) {
+      if (!diffText.trim()) return '<p class="diff-empty">Geen wijzigingen t.o.v. huidig.</p>';
+      return diffText.split("\n").map(line => {
+        const t = escHtml(line);
+        if (line.startsWith("+++") || line.startsWith("---") ||
+            line.startsWith("diff") || line.startsWith("index")) return "";
+        if (line.startsWith("@@"))  return `<span class="diff-hunk">${t}</span>`;
+        if (line.startsWith("+"))   return `<span class="diff-add">${t}</span>`;
+        if (line.startsWith("-"))   return `<span class="diff-remove">${t}</span>`;
+        return `<span class="diff-context">${t}</span>`;
+      }).join("");
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // ── Preflight ─────────────────────────────────────────────────────────────
+    let pollPF = null;
+    let pfStart = null;
+
+    async function runPreflight() {
+      const url = document.getElementById("drive-url").value.trim();
+      if (!url) { showPFStatus("❌ Vul eerst een Drive-URL in."); return; }
+
+      const prompt = document.getElementById("prompt-editor").value;
+      const btn = document.getElementById("btn-preflight");
+      btn.disabled = true;
+      pfStart = Date.now();
+      showPFStatus('<span class="spinner"></span> Preflight gestart (1 PDF)…');
+
+      try {
+        const resp = await fetch("/preflight", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ drive_url: url, prompt }),
+        });
+        const data = await resp.json();
+        if (data.error) { showPFStatus("❌ " + data.error); btn.disabled = false; return; }
+        pollPF = setInterval(() => pollPreflightStatus(data.job_id), 3000);
+      } catch (e) {
+        showPFStatus("❌ Verbindingsfout: " + e.message);
+        btn.disabled = false;
+      }
+    }
+
+    async function pollPreflightStatus(jobId) {
+      try {
+        const resp = await fetch(`/status/${jobId}`);
+        if (resp.status === 404) {
+          clearInterval(pollPF);
+          showPFStatus("❌ Job niet gevonden.");
+          document.getElementById("btn-preflight").disabled = false;
+          return;
+        }
+        const data = await resp.json();
+        if (data.status === "done") {
+          clearInterval(pollPF);
+          const elapsed = Math.round((Date.now() - pfStart) / 1000);
+          const m = Math.floor(elapsed / 60), s = elapsed % 60;
+          const duration = m > 0 ? `${m}:${String(s).padStart(2,"0")} min` : `${s}s`;
+          showPFStatus(`✅ Preflight klaar! <span style="color:#64748b;font-size:.8em">(${duration})</span>`);
+          document.getElementById("preflight-container").style.display = "block";
+          document.getElementById("preflight-frame").src = data.url;
+          document.getElementById("btn-preflight").disabled = false;
+        } else if (data.status === "error") {
+          clearInterval(pollPF);
+          showPFStatus("❌ " + (data.error || "Fout."));
+          document.getElementById("btn-preflight").disabled = false;
+        }
+      } catch (e) { /* netwerk-hik */ }
+    }
+
+    function showPFStatus(html) {
+      document.getElementById("pf-status-inline").innerHTML = html;
+    }
+
+    // ── Hoogte-resizer (onder editor-grid) ───────────────────────────────────
+    const heightResizer = document.getElementById("height-resizer");
+    const editorGrid    = document.getElementById("editor-grid");
+
+    heightResizer.addEventListener("mousedown", e => {
+      e.preventDefault();
+      const startY      = e.clientY;
+      const startHeight = editorGrid.getBoundingClientRect().height;
+
+      function onMove(e) {
+        const newH = Math.max(200, startHeight + e.clientY - startY);
+        editorGrid.style.height = newH + "px";
+      }
+      function onUp() {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+
+    // ── Breedte-resizer (rechterrand main-wrapper) ────────────────────────────
+    const widthResizer  = document.getElementById("width-resizer");
+    const mainWrapper   = document.getElementById("main-wrapper");
+
+    widthResizer.addEventListener("mousedown", e => {
+      e.preventDefault();
+      const startX     = e.clientX;
+      const startWidth = mainWrapper.getBoundingClientRect().width;
+
+      function onMove(e) {
+        const newW = Math.max(400, startWidth + e.clientX - startX);
+        mainWrapper.style.width = newW + "px";
+      }
+      function onUp() {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+
+    // ── Draggable kolom-resizer ───────────────────────────────────────────────
+    const resizer   = document.getElementById("resizer");
+    const grid      = document.getElementById("editor-grid");
+    const editorCol = grid.querySelector(".editor-col");
+
+    resizer.addEventListener("mousedown", e => {
+      e.preventDefault();
+      resizer.classList.add("dragging");
+      const startX     = e.clientX;
+      const startWidth = editorCol.getBoundingClientRect().width;
+      const gridLeft   = grid.getBoundingClientRect().left;
+      const gridWidth  = grid.getBoundingClientRect().width;
+
+      function onMove(e) {
+        const newW = Math.max(160, Math.min(gridWidth - 172, e.clientX - gridLeft));
+        editorCol.style.width = newW + "px";
+      }
+
+      function onUp() {
+        resizer.classList.remove("dragging");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      }
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+
+    // ── Sync scroll ───────────────────────────────────────────────────────────
+    const editor  = document.getElementById("prompt-editor");
+    const preview = document.getElementById("prompt-preview");
+    let syncLock = false;
+
+    editor.addEventListener("scroll", () => {
+      if (syncLock) return;
+      syncLock = true;
+      const ratio = editor.scrollTop / Math.max(1, editor.scrollHeight - editor.clientHeight);
+      preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
+      syncLock = false;
+    });
+
+    preview.addEventListener("scroll", () => {
+      if (syncLock) return;
+      syncLock = true;
+      const ratio = preview.scrollTop / Math.max(1, preview.scrollHeight - preview.clientHeight);
+      editor.scrollTop = ratio * (editor.scrollHeight - editor.clientHeight);
+      syncLock = false;
+    });
+
+    // ── Markdown renderer ─────────────────────────────────────────────────────
+    function renderMarkdown(text) {
+      let html = escHtml(text);
+
+      // Code blocks (vóór inline code)
+      html = html.replace(/```[^\n]*\n([\s\S]*?)```/g, (_, c) =>
+        `<pre><code>${c}</code></pre>`);
+
+      // Headers
+      html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+      html = html.replace(/^## (.+)$/gm,  "<h2>$1</h2>");
+      html = html.replace(/^# (.+)$/gm,   "<h1>$1</h1>");
+
+      // Bold
+      html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+      // Inline code
+      html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+
+      // HR
+      html = html.replace(/^---$/gm, "<hr>");
+
+      // Bullet lists
+      html = html.replace(/((?:^- .+\n?)+)/gm, match => {
+        const items = match.trim().split("\n")
+          .map(l => `<li>${l.replace(/^- /, "")}</li>`)
+          .join("");
+        return `<ul>${items}</ul>`;
+      });
+
+      // Paragrafen
+      html = html.split("\n\n").map(para => {
+        para = para.trim();
+        if (!para) return "";
+        if (/^<(h[1-6]|ul|pre|hr)/.test(para)) return para;
+        return `<p>${para.replace(/\n/g, "<br>")}</p>`;
+      }).join("\n");
+
+      return html;
+    }
+  </script>
+</body>
+</html>
