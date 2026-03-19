@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -216,8 +216,11 @@ def generate_html(pdf_paths: list[Path], system_prompt: str, job_id: str) -> str
 # ── Flask routes ──────────────────────────────────────────────────────────────
 
 @app.route("/favicon.ico")
+@app.route("/favicon.svg")
 def favicon():
-    return "", 204
+    return send_from_directory(
+        Path("static"), "favicon.svg", mimetype="image/svg+xml"
+    )
 
 
 @app.route("/")
