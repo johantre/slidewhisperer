@@ -210,6 +210,12 @@ def generate_html(pdf_paths: list[Path], system_prompt: str, job_id: str) -> str
         html = match.group(0)
     # Verwijder eventuele afsluitende markdown code-fencing
     html = re.sub(r"```\s*$", "", html).strip()
+    # Injecteer favicon
+    html = re.sub(
+        r"(<head[^>]*>)",
+        r'\1\n  <link rel="icon" type="image/svg+xml" href="/favicon.svg">',
+        html, count=1, flags=re.IGNORECASE,
+    )
     return html
 
 
