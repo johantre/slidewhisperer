@@ -311,7 +311,7 @@
       flex-shrink: 0;
     }
 
-    #prompt-editor {
+    .prompt-editor {
       flex: 1;
       font-family: 'Consolas', 'Fira Code', monospace;
       font-size: .82rem;
@@ -324,7 +324,7 @@
       background: #fafafa;
       overflow-y: auto;
     }
-    #prompt-editor:focus { outline: none; border-color: var(--accent); }
+    .prompt-editor:focus { outline: none; border-color: var(--accent); }
 
     #prompt-preview {
       flex: 1;
@@ -540,10 +540,16 @@
         <div class="editor-grid" id="editor-grid">
 
           <div class="editor-col">
-            <div class="pane-label" data-i18n="paneEditor">✏️ Editor</div>
-            <textarea id="prompt-editor" spellcheck="false"
+            <div class="pane-tabs">
+              <button class="pane-tab active" id="etab-content" onclick="showEditorTab('content')"><span data-i18n="editorTabContent">📝 Hoe samenvatten</span></button>
+              <button class="pane-tab" id="etab-html" onclick="showEditorTab('html')"><span data-i18n="editorTabHtml">⚙️ HTML-opmaak</span></button>
+            </div>
+            <textarea id="editor-content" class="prompt-editor" spellcheck="false"
                       data-i18n="editorPlaceholder"
                       placeholder="Prompt wordt geladen…"></textarea>
+            <textarea id="editor-html" class="prompt-editor" spellcheck="false" style="display:none"
+                      data-i18n="editorPlaceholder"
+                      placeholder="HTML-structuur wordt geladen…"></textarea>
           </div>
 
           <div class="resizer" id="resizer"></div>
@@ -593,7 +599,8 @@
         resultsTitle:     "📋 Resultaten",
         werkvensterTitle: "⚙️ Prompt Werkvenster",
         btnSave:          "Opslaan",
-        paneEditor:       "✏️ Editor",
+        editorTabContent: "📝 Hoe samenvatten",
+        editorTabHtml:    "⚙️ HTML-opmaak",
         tabHistory:       "📜 Geschiedenis",
         btnPrint:         "Afdrukken",
         editorPlaceholder:"Prompt wordt geladen…",
@@ -639,7 +646,8 @@
         resultsTitle:     "📋 Results",
         werkvensterTitle: "⚙️ Prompt Workshop",
         btnSave:          "Save",
-        paneEditor:       "✏️ Editor",
+        editorTabContent: "📝 How to summarise",
+        editorTabHtml:    "⚙️ HTML layout",
         tabHistory:       "📜 History",
         btnPrint:         "Print",
         editorPlaceholder:"Loading prompt…",
@@ -715,6 +723,7 @@
 
     // ── Genereer ──────────────────────────────────────────────────────────────
     let pollInterval = null;
+    let activeEditorTab = "content";
 
     async function generate() {
       const url = document.getElementById("drive-url").value.trim();
@@ -854,31 +863,42 @@
 
     // ── Werkvenster ───────────────────────────────────────────────────────────
     document.getElementById("werkvenster").addEventListener("toggle", async function () {
-      if (this.open && !document.getElementById("prompt-editor").value) {
+      if (this.open && !document.getElementById("editor-content").value) {
         await loadPrompt();
       }
     });
 
     async function loadPrompt() {
-      const resp = await fetch("/prompt");
-      const text = await resp.text();
-      document.getElementById("prompt-editor").value = text;
+      const [respContent, respHtml] = await Promise.all([
+        fetch("/prompt?tab=content"),
+        fetch("/prompt?tab=html")
+      ]);
+      document.getElementById("editor-content").value = await respContent.text();
+      document.getElementById("editor-html").value = await respHtml.text();
       updatePreview();
     }
 
-    document.getElementById("prompt-editor").addEventListener("input", updatePreview);
+    function showEditorTab(tab) {
+      activeEditorTab = tab;
+      ["content", "html"].forEach(t => {
+        document.getElementById("editor-" + t).style.display = t === tab ? "block" : "none";
+        document.getElementById("etab-" + t).classList.toggle("active", t === tab);
+      });
+      updatePreview();
+      if (document.getElementById("tab-history").classList.contains("active")) loadHistory();
+    }
 
     function updatePreview() {
-      const text = document.getElementById("prompt-editor").value;
+      const text = document.getElementById("editor-" + activeEditorTab).value;
       document.getElementById("prompt-preview").innerHTML = renderMarkdown(text);
     }
 
     async function savePrompt() {
-      const content = document.getElementById("prompt-editor").value;
+      const content = document.getElementById("editor-" + activeEditorTab).value;
       const resp = await fetch("/prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ tab: activeEditorTab, content }),
       });
       const data = await resp.json();
       showPFStatus(data.ok ? t("savedOk") : "❌ " + (data.error || "Fout."));
@@ -899,7 +919,7 @@
 
     // ── History ───────────────────────────────────────────────────────────────
     async function loadHistory() {
-      const resp = await fetch("/history");
+      const resp = await fetch("/history?tab=" + activeEditorTab);
       const commits = await resp.json();
       const list = document.getElementById("history-list");
 
@@ -923,16 +943,16 @@
       const diffEl = document.getElementById("history-diff");
       diffEl.innerHTML = `<p class="diff-empty">${t("diffLoading")}</p>`;
 
-      const resp = await fetch(`/history/${hash}/diff`);
+      const resp = await fetch(`/history/${hash}/diff?tab=${activeEditorTab}`);
       const diff = await resp.text();
       diffEl.innerHTML = renderDiff(diff);
     }
 
     async function restoreVersion(hash, e) {
       e.stopPropagation();
-      const resp = await fetch(`/history/${hash}`);
+      const resp = await fetch(`/history/${hash}?tab=${activeEditorTab}`);
       const text = await resp.text();
-      document.getElementById("prompt-editor").value = text;
+      document.getElementById("editor-" + activeEditorTab).value = text;
       updatePreview();
       showTab("preview");
       showPFStatus(t("versionRestored"));
@@ -976,7 +996,6 @@
       const url = document.getElementById("drive-url").value.trim();
       if (!url) { showPFStatus(t("errNoDriveUrl")); return; }
 
-      const prompt = document.getElementById("prompt-editor").value;
       const btn = document.getElementById("btn-preflight");
       btn.disabled = true;
       pfStart = Date.now();
@@ -986,7 +1005,7 @@
         const resp = await fetch("/preflight", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ drive_url: url, prompt }),
+          body: JSON.stringify({ drive_url: url }),
         });
         const data = await resp.json();
         if (data.error) { showPFStatus("❌ " + data.error); btn.disabled = false; return; }
@@ -1094,23 +1113,27 @@
     });
 
     // ── Sync scroll ───────────────────────────────────────────────────────────
-    const editor  = document.getElementById("prompt-editor");
-    const preview = document.getElementById("prompt-preview");
+    const previewEl = document.getElementById("prompt-preview");
     let syncLock = false;
 
-    editor.addEventListener("scroll", () => {
-      if (syncLock) return;
-      syncLock = true;
-      const ratio = editor.scrollTop / Math.max(1, editor.scrollHeight - editor.clientHeight);
-      preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
-      syncLock = false;
+    ["content", "html"].forEach(tab => {
+      const editorEl = document.getElementById("editor-" + tab);
+      editorEl.addEventListener("input", updatePreview);
+      editorEl.addEventListener("scroll", () => {
+        if (activeEditorTab !== tab || syncLock) return;
+        syncLock = true;
+        const ratio = editorEl.scrollTop / Math.max(1, editorEl.scrollHeight - editorEl.clientHeight);
+        previewEl.scrollTop = ratio * (previewEl.scrollHeight - previewEl.clientHeight);
+        syncLock = false;
+      });
     });
 
-    preview.addEventListener("scroll", () => {
+    previewEl.addEventListener("scroll", () => {
       if (syncLock) return;
       syncLock = true;
-      const ratio = preview.scrollTop / Math.max(1, preview.scrollHeight - preview.clientHeight);
-      editor.scrollTop = ratio * (editor.scrollHeight - editor.clientHeight);
+      const editorEl = document.getElementById("editor-" + activeEditorTab);
+      const ratio = previewEl.scrollTop / Math.max(1, previewEl.scrollHeight - previewEl.clientHeight);
+      editorEl.scrollTop = ratio * (editorEl.scrollHeight - editorEl.clientHeight);
       syncLock = false;
     });
 

@@ -33,7 +33,9 @@ OUTPUT_BASE_URL       = os.getenv("OUTPUT_BASE_URL", "http://localhost:5000/outp
 OUTPUT_DIR            = Path("output")
 UPLOADS_DIR           = Path("uploads")
 CACHE_DIR             = Path("cache")
-PROMPT_FILE           = Path("prompts/system_prompt.md")
+PROMPT_HTML_FILE    = Path("prompts/system_prompt_html.md")
+PROMPT_CONTENT_FILE = Path("prompts/system_prompt_content.md")
+_PROMPT_LEGACY      = Path("prompts/system_prompt.md")  # migration only
 
 CACHE_DIR.mkdir(exist_ok=True)
 
@@ -64,17 +66,38 @@ def git_ensure_repo():
         _git("init")
         _git("config", "user.email", "app@local")
         _git("config", "user.name", "SlideWhisperer")
-        if PROMPT_FILE.exists():
-            _git("add", str(PROMPT_FILE))
-            _git("commit", "-m", "initiële prompt")
         logging.info("Git repo geïnitialiseerd voor prompt-versioning.")
     else:
         _git("config", "user.email", "app@local")
         _git("config", "user.name", "SlideWhisperer")
 
+    new_files = []
 
-def git_commit_prompt():
-    _git("add", str(PROMPT_FILE))
+    if not PROMPT_CONTENT_FILE.exists():
+        PROMPT_CONTENT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if _PROMPT_LEGACY.exists():
+            PROMPT_CONTENT_FILE.write_text(_PROMPT_LEGACY.read_text(encoding="utf-8"), encoding="utf-8")
+        else:
+            PROMPT_CONTENT_FILE.write_text("", encoding="utf-8")
+        new_files.append(str(PROMPT_CONTENT_FILE))
+        logging.info(f"Aangemaakt: {PROMPT_CONTENT_FILE}")
+
+    if not PROMPT_HTML_FILE.exists():
+        PROMPT_HTML_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PROMPT_HTML_FILE.write_text("", encoding="utf-8")
+        new_files.append(str(PROMPT_HTML_FILE))
+        logging.info(f"Aangemaakt: {PROMPT_HTML_FILE}")
+
+    if new_files:
+        for f in new_files:
+            _git("add", f)
+        result = _git("diff", "--cached", "--quiet")
+        if result.returncode != 0:
+            _git("commit", "-m", "migratie: split prompt bestanden aangemaakt")
+
+
+def git_commit_prompt(prompt_file: Path):
+    _git("add", str(prompt_file))
     result = _git("diff", "--cached", "--quiet")
     if result.returncode != 0:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -82,8 +105,8 @@ def git_commit_prompt():
         logging.info("Prompt gecommit.")
 
 
-def git_log_prompt() -> list[dict]:
-    result = _git("log", "--format=%H|%ai", "--follow", "--", str(PROMPT_FILE))
+def git_log_prompt(prompt_file: Path) -> list[dict]:
+    result = _git("log", "--format=%H|%ai", "--follow", "--", str(prompt_file))
     commits = []
     for line in result.stdout.strip().splitlines():
         parts = line.split("|", 1)
@@ -95,14 +118,18 @@ def git_log_prompt() -> list[dict]:
     return commits
 
 
-def git_show_prompt(full_hash: str) -> str:
-    result = _git("show", f"{full_hash}:{PROMPT_FILE}")
+def git_show_prompt(full_hash: str, prompt_file: Path) -> str:
+    result = _git("show", f"{full_hash}:{prompt_file}")
     return result.stdout
 
 
-def git_diff_prompt(full_hash: str) -> str:
-    result = _git("diff", full_hash, "--", str(PROMPT_FILE))
+def git_diff_prompt(full_hash: str, prompt_file: Path) -> str:
+    result = _git("diff", full_hash, "--", str(prompt_file))
     return result.stdout
+
+
+def _tab_to_file(tab: str) -> Path:
+    return PROMPT_HTML_FILE if tab == "html" else PROMPT_CONTENT_FILE
 
 
 git_ensure_repo()
@@ -171,7 +198,7 @@ def download_pdf(service, file_id: str, dest_path: Path):
 
 # ── Gemini helper ─────────────────────────────────────────────────────────────
 
-def generate_html(pdf_paths: list[Path], system_prompt: str, job_id: str) -> str:
+def generate_html(pdf_paths: list[Path], html_prompt: str, content_prompt: str, job_id: str) -> str:
     """Upload PDFs naar Gemini Files API en genereer HTML."""
     uploaded = []
     try:
@@ -183,16 +210,19 @@ def generate_html(pdf_paths: list[Path], system_prompt: str, job_id: str) -> str
             )
             uploaded.append(f)
 
-        parts = [types.Part.from_text(text=system_prompt + "\n\nHier zijn de PDF-bestanden van de cursus:\n")]
+        parts = [types.Part.from_text(text=content_prompt + "\n\nHier zijn de PDF-bestanden van de cursus:\n")]
         for f in uploaded:
             parts.append(types.Part.from_text(text=f"\nBestandsnaam: {f.display_name}\n"))
             parts.append(types.Part.from_uri(file_uri=f.uri, mime_type="application/pdf"))
 
         logging.info(f"[{job_id}] Gemini genereert HTML…")
+        config_kwargs = {"temperature": 0}
+        if html_prompt.strip():
+            config_kwargs["system_instruction"] = html_prompt
         response = gemini.models.generate_content(
             model="gemini-3.1-pro-preview",
             contents=parts,
-            config=types.GenerateContentConfig(temperature=0),
+            config=types.GenerateContentConfig(**config_kwargs),
         )
         html = response.text
 
@@ -236,18 +266,22 @@ def index():
 
 @app.route("/prompt", methods=["GET"])
 def get_prompt():
-    return PROMPT_FILE.read_text(encoding="utf-8"), 200, {"Content-Type": "text/plain; charset=utf-8"}
+    tab = request.args.get("tab", "content")
+    prompt_file = _tab_to_file(tab)
+    return prompt_file.read_text(encoding="utf-8"), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
 @app.route("/prompt", methods=["POST"])
 def save_prompt():
     data = request.get_json()
-    content = (data or {}).get("content", "").strip()
-    if not content:
+    tab = (data or {}).get("tab", "content")
+    content = (data or {}).get("content", "")
+    if content is None:
         return jsonify({"error": "Lege prompt."}), 400
-    PROMPT_FILE.write_text(content, encoding="utf-8")
-    git_commit_prompt()
-    logging.info("Prompt opgeslagen en gecommit.")
+    prompt_file = _tab_to_file(tab)
+    prompt_file.write_text(content, encoding="utf-8")
+    git_commit_prompt(prompt_file)
+    logging.info(f"Prompt opgeslagen en gecommit ({prompt_file.name}).")
     return jsonify({"ok": True})
 
 
@@ -288,30 +322,38 @@ def delete_result(job_id):
 
 @app.route("/history")
 def history():
-    return jsonify(git_log_prompt())
+    tab = request.args.get("tab", "content")
+    return jsonify(git_log_prompt(_tab_to_file(tab)))
 
 
 @app.route("/history/<hash_>")
 def history_content(hash_):
-    commits = git_log_prompt()
+    tab = request.args.get("tab", "content")
+    prompt_file = _tab_to_file(tab)
+    commits = git_log_prompt(prompt_file)
     full = next((c["full_hash"] for c in commits if c["hash"] == hash_), None)
     if not full:
         return jsonify({"error": "Versie niet gevonden."}), 404
-    return git_show_prompt(full), 200, {"Content-Type": "text/plain; charset=utf-8"}
+    return git_show_prompt(full, prompt_file), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
 @app.route("/history/<hash_>/diff")
 def history_diff(hash_):
-    commits = git_log_prompt()
+    tab = request.args.get("tab", "content")
+    prompt_file = _tab_to_file(tab)
+    commits = git_log_prompt(prompt_file)
     full = next((c["full_hash"] for c in commits if c["hash"] == hash_), None)
     if not full:
         return jsonify({"error": "Versie niet gevonden."}), 404
-    return git_diff_prompt(full), 200, {"Content-Type": "text/plain; charset=utf-8"}
+    return git_diff_prompt(full, prompt_file), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
-def run_preflight(job_id: str, drive_url: str, prompt: str):
+def run_preflight(job_id: str, drive_url: str):
     """Zelfde als run_job maar enkel de eerste PDF."""
     try:
+        html_prompt    = PROMPT_HTML_FILE.read_text(encoding="utf-8")
+        content_prompt = PROMPT_CONTENT_FILE.read_text(encoding="utf-8")
+
         folder_id = extract_folder_id(drive_url)
         service = get_drive_service()
         pdfs = list_pdfs(service, folder_id)
@@ -334,7 +376,7 @@ def run_preflight(job_id: str, drive_url: str, prompt: str):
             shutil.copy(dest, cached)
 
         logging.info(f"[{job_id}] Preflight met: {first['name']}")
-        html = generate_html([dest], prompt, job_id)
+        html = generate_html([dest], html_prompt, content_prompt, job_id)
 
         job_dir = OUTPUT_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
@@ -357,14 +399,13 @@ def run_preflight(job_id: str, drive_url: str, prompt: str):
 def preflight():
     data      = request.get_json()
     drive_url = (data or {}).get("drive_url", "").strip()
-    prompt    = (data or {}).get("prompt", "").strip() or PROMPT_FILE.read_text(encoding="utf-8")
 
     if not drive_url:
         return jsonify({"error": "Geen Drive-URL opgegeven."}), 400
 
     job_id = "pf_" + uuid.uuid4().hex[:6]
     jobs[job_id] = {"status": "running"}
-    threading.Thread(target=run_preflight, args=(job_id, drive_url, prompt), daemon=True).start()
+    threading.Thread(target=run_preflight, args=(job_id, drive_url), daemon=True).start()
     return jsonify({"job_id": job_id})
 
 
@@ -406,9 +447,10 @@ def run_job(job_id: str, drive_url: str):
                 shutil.copy(dest, cached)
             pdf_paths.append(dest)
 
-        system_prompt = PROMPT_FILE.read_text(encoding="utf-8")
+        html_prompt    = PROMPT_HTML_FILE.read_text(encoding="utf-8")
+        content_prompt = PROMPT_CONTENT_FILE.read_text(encoding="utf-8")
         logging.info(f"[{job_id}] Gemini wordt aangesproken ({len(pdf_paths)} PDFs)…")
-        html = generate_html(pdf_paths, system_prompt, job_id)
+        html = generate_html(pdf_paths, html_prompt, content_prompt, job_id)
         logging.info(f"[{job_id}] HTML gegenereerd ({len(html)} tekens)")
 
         (job_dir / "overzicht.html").write_text(html, encoding="utf-8")
