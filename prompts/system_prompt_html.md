@@ -131,5 +131,5 @@ De `@media print` hoeft niets extra's: als `hide-notities` op `body` staat, zijn
 - **Geen externe files of CDN's** — alles inline HTML/CSS.
 - Alle PDF-links openen in hetzelfde vaste tabblad via `target="pdf-viewer"`.
 - Unieke `id`-attributen voor elk hoofdstuk en elke sectie.
-- `@media print`: elk hoofdstuk op nieuwe pagina (`break-before: page`), SVG zichtbaar, geen box-shadows.
+- `@media print`: elk hoofdstuk op nieuwe pagina (`break-before: page`), SVG zichtbaar, geen box-shadows. Voeg ook toe: `tr, .te-kennen, .sectie-titel { break-inside: avoid; }` zodat tabelrijen en kaders niet worden gesplitst over een pagina-overgang.
 - `.th-link` CSS-klasse: `color: inherit; text-decoration: none;` met `text-decoration: underline` bij hover.
