@@ -128,6 +128,10 @@ def git_diff_prompt(full_hash: str, prompt_file: Path) -> str:
     return result.stdout
 
 
+def _is_cancelled(job_id: str) -> bool:
+    return jobs.get(job_id, {}).get("cancelled", False)
+
+
 def _tab_to_file(tab: str) -> Path:
     return PROMPT_HTML_FILE if tab == "html" else PROMPT_CONTENT_FILE
 
@@ -180,10 +184,23 @@ def list_pdfs(service, folder_id: str) -> list[dict]:
     """Geef alle PDF-bestanden in de map terug."""
     result = service.files().list(
         q=f"'{folder_id}' in parents and mimeType='application/pdf' and trashed=false",
-        fields="files(id, name)",
+        fields="files(id, name, modifiedTime)",
         orderBy="name",
     ).execute()
     return result.get("files", [])
+
+
+def _needs_download(cached_path: Path, drive_mtime_str: str) -> bool:
+    """True als cache ontbreekt of Drive-versie nieuwer is dan de cache."""
+    if not cached_path.exists():
+        return True
+    try:
+        from datetime import timezone
+        drive_mtime = datetime.fromisoformat(drive_mtime_str.replace("Z", "+00:00"))
+        local_mtime = datetime.fromtimestamp(cached_path.stat().st_mtime, tz=timezone.utc)
+        return drive_mtime > local_mtime
+    except Exception:
+        return True
 
 
 def download_pdf(service, file_id: str, dest_path: Path):
@@ -289,12 +306,15 @@ def save_prompt():
 def list_results():
     results = []
     if OUTPUT_DIR.exists():
-        for d in sorted(OUTPUT_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-            if d.is_dir() and (d / "overzicht.html").exists():
+        for d in sorted(OUTPUT_DIR.iterdir(),
+                        key=lambda x: (x / "overzicht.html").stat().st_mtime if (x / "overzicht.html").exists() else 0,
+                        reverse=True):
+            html_file = d / "overzicht.html"
+            if d.is_dir() and html_file.exists():
                 results.append({
                     "id": d.name,
                     "is_preflight": d.name.startswith("pf_"),
-                    "mtime": d.stat().st_mtime,
+                    "mtime": html_file.stat().st_mtime,
                     "url": f"{OUTPUT_BASE_URL}/{d.name}/overzicht.html",
                 })
     return jsonify(results)
@@ -436,22 +456,33 @@ def run_job(job_id: str, drive_url: str):
 
         pdf_paths = []
         for pdf in pdfs:
+            if _is_cancelled(job_id):
+                shutil.rmtree(work_dir, ignore_errors=True)
+                return
             dest   = work_dir / pdf["name"]
             cached = CACHE_DIR / f"{pdf['id']}.pdf"
-            if cached.exists():
-                logging.info(f"[{job_id}] Cache: {pdf['name']}")
-                shutil.copy(cached, dest)
-            else:
+            if _needs_download(cached, pdf.get("modifiedTime", "")):
                 logging.info(f"[{job_id}] Downloaden: {pdf['name']}")
                 download_pdf(service, pdf["id"], dest)
                 shutil.copy(dest, cached)
+            else:
+                logging.info(f"[{job_id}] Cache: {pdf['name']}")
+                shutil.copy(cached, dest)
             pdf_paths.append(dest)
+
+        if _is_cancelled(job_id):
+            shutil.rmtree(work_dir, ignore_errors=True)
+            return
 
         html_prompt    = PROMPT_HTML_FILE.read_text(encoding="utf-8")
         content_prompt = PROMPT_CONTENT_FILE.read_text(encoding="utf-8")
         logging.info(f"[{job_id}] Gemini wordt aangesproken ({len(pdf_paths)} PDFs)…")
         html = generate_html(pdf_paths, html_prompt, content_prompt, job_id)
         logging.info(f"[{job_id}] HTML gegenereerd ({len(html)} tekens)")
+
+        if _is_cancelled(job_id):
+            shutil.rmtree(work_dir, ignore_errors=True)
+            return
 
         (job_dir / "overzicht.html").write_text(html, encoding="utf-8")
         for pdf_path in pdf_paths:
@@ -492,6 +523,16 @@ def status(job_id):
     if not job:
         return jsonify({"error": "Onbekende job."}), 404
     return jsonify(job)
+
+
+@app.route("/cancel/<job_id>", methods=["POST"])
+def cancel(job_id):
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Onbekende job."}), 404
+    job["cancelled"] = True
+    job["status"] = "cancelled"
+    return jsonify({"ok": True})
 
 
 @app.route("/output/<job_id>/<path:filename>")

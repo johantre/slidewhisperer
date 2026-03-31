@@ -501,6 +501,7 @@
              autocomplete="off">
 
       <button id="btn-generate" onclick="generate()">✨ <span data-i18n="btnGenerate">Genereer studieoverzicht</span></button>
+      <button id="btn-cancel" onclick="cancelJob()" style="display:none">⛔ <span data-i18n="btnCancel">Stop</span></button>
 
       <div id="status"></div>
 
@@ -595,6 +596,8 @@
         driveLabel:       "Google Drive map-link",
         drivePlaceholder: "https://drive.google.com/drive/folders/...",
         btnGenerate:      "Genereer studieoverzicht",
+        btnCancel:        "Stop",
+        statusCancelled:  "❌ Gestopt.",
         hint:             "Zorg dat de map gedeeld is met het service account.<br>Verwerking duurt 1–3 minuten afhankelijk van het aantal PDFs.",
         resultsTitle:     "📋 Resultaten",
         werkvensterTitle: "⚙️ Prompt Werkvenster",
@@ -642,6 +645,8 @@
         driveLabel:       "Google Drive folder link",
         drivePlaceholder: "https://drive.google.com/drive/folders/...",
         btnGenerate:      "Generate study overview",
+        btnCancel:        "Stop",
+        statusCancelled:  "❌ Stopped.",
         hint:             "Make sure the folder is shared with the service account.<br>Processing takes 1–3 minutes depending on the number of PDFs.",
         resultsTitle:     "📋 Results",
         werkvensterTitle: "⚙️ Prompt Workshop",
@@ -724,10 +729,12 @@
     // ── Genereer ──────────────────────────────────────────────────────────────
     let pollInterval = null;
     let activeEditorTab = "content";
+    let currentJobId = null;
 
     async function generate() {
       const url = document.getElementById("drive-url").value.trim();
       const btn = document.getElementById("btn-generate");
+      const btnCancel = document.getElementById("btn-cancel");
       if (!url) { showStatus("fout", t("errNoUrl")); return; }
 
       btn.disabled = true;
@@ -745,12 +752,23 @@
           btn.disabled = false;
           return;
         }
+        currentJobId = data.job_id;
+        btnCancel.style.display = "";
         showStatus("bezig", `<span class="spinner"></span> ${t("statusProcessing")}`);
         pollInterval = setInterval(() => pollStatus(data.job_id), 3000);
       } catch (e) {
         showStatus("fout", "❌ " + e.message);
         btn.disabled = false;
       }
+    }
+
+    async function cancelJob() {
+      if (!currentJobId) return;
+      const btnCancel = document.getElementById("btn-cancel");
+      btnCancel.disabled = true;
+      try {
+        await fetch(`/cancel/${currentJobId}`, { method: "POST" });
+      } catch (e) { /* ignore */ }
     }
 
     async function pollStatus(jobId) {
@@ -760,6 +778,7 @@
           clearInterval(pollInterval);
           showStatus("fout", "❌ " + t("errJobNotFound"));
           document.getElementById("btn-generate").disabled = false;
+          document.getElementById("btn-cancel").style.display = "none";
           return;
         }
         const data = await resp.json();
@@ -767,10 +786,18 @@
           clearInterval(pollInterval);
           showStatus("klaar", t("statusDone", { url: data.url }));
           document.getElementById("btn-generate").disabled = false;
+          document.getElementById("btn-cancel").style.display = "none";
         } else if (data.status === "error") {
           clearInterval(pollInterval);
           showStatus("fout", "❌ " + (data.error || t("errJobNotFound")));
           document.getElementById("btn-generate").disabled = false;
+          document.getElementById("btn-cancel").style.display = "none";
+        } else if (data.status === "cancelled") {
+          clearInterval(pollInterval);
+          showStatus("fout", t("statusCancelled"));
+          document.getElementById("btn-generate").disabled = false;
+          document.getElementById("btn-cancel").style.display = "none";
+          document.getElementById("btn-cancel").disabled = false;
         }
       } catch (e) { /* netwerk-hik */ }
     }

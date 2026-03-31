@@ -81,11 +81,49 @@ Nernst: <code>E = E° + (0.05916/n) · log([ox]/[red])</code></td>
 ```
 Gebruik `<sup>` en `<sub>` voor superscript/subscript: H<sub>2</sub>O, CO<sub>2</sub>.
 
+**Handgeschreven notities — inline in tabelcel:** wanneer een PDF handgeschreven annotaties bevat die betrekking hebben op een specifiek concept, voeg ze toe **binnen de bestaande `<td>`** van dat concept:
+```html
+<td>
+  Beknopte uitleg...<br>
+  <span class="notitie">✍️ handgeschreven notitie</span>
+</td>
+```
+CSS voor `.notitie`: `display: block; margin-top: .4rem; font-style: italic; color: #1a6a9a; font-size: .9em;`
+
 **Examen-focus box:** sluit elk hoofdstuk af met:
 ```html
 <div class="te-kennen">...</div>
 ```
 Stijl: lichtgele achtergrond `#fffbe6`, gouden rand `#f0d060`.
+
+---
+
+### TOGGLE VOOR HANDGESCHREVEN NOTITIES
+
+Voeg bovenaan de pagina (vóór het SVG-diagram) een checkbox toe waarmee de gebruiker handgeschreven notities kan tonen/verbergen, zowel op scherm als bij afdrukken:
+
+```html
+<label class="notitie-toggle">
+  <input type="checkbox" id="toggle-notities" onchange="document.body.classList.toggle('hide-notities', this.checked)">
+  ✍️ Verberg handgeschreven notities
+</label>
+```
+
+CSS:
+```css
+.notitie-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: 1rem;
+  font-size: .9rem;
+  cursor: pointer;
+  color: #555;
+}
+body.hide-notities .notitie { display: none !important; }
+```
+
+De `@media print` hoeft niets extra's: als `hide-notities` op `body` staat, zijn de notities ook in de afdruk verborgen.
 
 ---
 
