@@ -142,6 +142,10 @@
     #status.klaar { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; display: block; }
     #status.fout  { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; display: block; }
     #status a { font-weight: 700; color: inherit; }
+    #status .status-phase { margin-top: .5rem; font-size: .85rem; opacity: .8; }
+    #status .status-footer { margin-top: .8rem; display: flex; justify-content: flex-end; }
+    #btn-cancel { background: transparent; border: 1px solid currentColor; color: inherit; font-size: .82rem; padding: .3rem .8rem; opacity: .7; margin: 0; }
+    #btn-cancel:hover:not(:disabled) { opacity: 1; }
 
     .hint { margin-top: 1.5rem; font-size: .8rem; color: #94a3b8; text-align: center; line-height: 1.6; }
 
@@ -501,7 +505,6 @@
              autocomplete="off">
 
       <button id="btn-generate" onclick="generate()">✨ <span data-i18n="btnGenerate">Genereer studieoverzicht</span></button>
-      <button id="btn-cancel" onclick="cancelJob()" style="display:none">⛔ <span data-i18n="btnCancel">Stop</span></button>
 
       <div id="status"></div>
 
@@ -731,10 +734,15 @@
     let activeEditorTab = "content";
     let currentJobId = null;
 
+    function showBusy(mainHtml, phase) {
+      const phaseHtml = phase ? `<div class="status-phase">${phase}</div>` : "";
+      const cancelHtml = `<div class="status-footer"><button id="btn-cancel" onclick="cancelJob()">⛔ <span data-i18n="btnCancel">${t("btnCancel")}</span></button></div>`;
+      showStatus("bezig", `<span class="spinner"></span> ${mainHtml}${phaseHtml}${cancelHtml}`);
+    }
+
     async function generate() {
       const url = document.getElementById("drive-url").value.trim();
       const btn = document.getElementById("btn-generate");
-      const btnCancel = document.getElementById("btn-cancel");
       if (!url) { showStatus("fout", t("errNoUrl")); return; }
 
       btn.disabled = true;
@@ -753,9 +761,8 @@
           return;
         }
         currentJobId = data.job_id;
-        btnCancel.style.display = "";
-        showStatus("bezig", `<span class="spinner"></span> ${t("statusProcessing")}`);
-        pollInterval = setInterval(() => pollStatus(data.job_id), 3000);
+        showBusy(t("statusProcessing"), null);
+        pollInterval = setInterval(() => pollStatus(data.job_id), 2000);
       } catch (e) {
         showStatus("fout", "❌ " + e.message);
         btn.disabled = false;
@@ -764,8 +771,8 @@
 
     async function cancelJob() {
       if (!currentJobId) return;
-      const btnCancel = document.getElementById("btn-cancel");
-      btnCancel.disabled = true;
+      const btn = document.getElementById("btn-cancel");
+      if (btn) btn.disabled = true;
       try {
         await fetch(`/cancel/${currentJobId}`, { method: "POST" });
       } catch (e) { /* ignore */ }
@@ -778,7 +785,6 @@
           clearInterval(pollInterval);
           showStatus("fout", "❌ " + t("errJobNotFound"));
           document.getElementById("btn-generate").disabled = false;
-          document.getElementById("btn-cancel").style.display = "none";
           return;
         }
         const data = await resp.json();
@@ -786,18 +792,16 @@
           clearInterval(pollInterval);
           showStatus("klaar", t("statusDone", { url: data.url }));
           document.getElementById("btn-generate").disabled = false;
-          document.getElementById("btn-cancel").style.display = "none";
         } else if (data.status === "error") {
           clearInterval(pollInterval);
           showStatus("fout", "❌ " + (data.error || t("errJobNotFound")));
           document.getElementById("btn-generate").disabled = false;
-          document.getElementById("btn-cancel").style.display = "none";
         } else if (data.status === "cancelled") {
           clearInterval(pollInterval);
           showStatus("fout", t("statusCancelled"));
           document.getElementById("btn-generate").disabled = false;
-          document.getElementById("btn-cancel").style.display = "none";
-          document.getElementById("btn-cancel").disabled = false;
+        } else if (data.status === "running") {
+          showBusy(t("statusProcessing"), data.phase || null);
         }
       } catch (e) { /* netwerk-hik */ }
     }

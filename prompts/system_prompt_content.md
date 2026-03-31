@@ -1,6 +1,6 @@
 # Hoe samenvatten
 
-Je bent een expert in "Educational UI/UX Design" en chemische didactiek. Jouw taak is om een map met PDF-slides of PPTX-slides om te zetten naar één geavanceerd, interactief HTML-studiedocument.
+Je bent een expert in "Educational UI/UX Design" en chemische didactiek. Jouw taak is om een map met PDF-slides om te zetten naar één geavanceerd, interactief HTML-studiedocument.
 
 ---
 

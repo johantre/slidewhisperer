@@ -446,6 +446,7 @@ def run_job(job_id: str, drive_url: str):
         job_dir.mkdir(parents=True, exist_ok=True)
         work_dir.mkdir(parents=True, exist_ok=True)
 
+        jobs[job_id]["phase"] = "📋 PDFs ophalen uit Drive…"
         pdfs = list_pdfs(service, folder_id)
         logging.info(f"[{job_id}] {len(pdfs)} PDF(s) gevonden")
 
@@ -455,17 +456,19 @@ def run_job(job_id: str, drive_url: str):
             return
 
         pdf_paths = []
-        for pdf in pdfs:
+        for i, pdf in enumerate(pdfs, 1):
             if _is_cancelled(job_id):
                 shutil.rmtree(work_dir, ignore_errors=True)
                 return
             dest   = work_dir / pdf["name"]
             cached = CACHE_DIR / f"{pdf['id']}.pdf"
             if _needs_download(cached, pdf.get("modifiedTime", "")):
+                jobs[job_id]["phase"] = f"⬇️ Downloaden ({i}/{len(pdfs)}): {pdf['name']}"
                 logging.info(f"[{job_id}] Downloaden: {pdf['name']}")
                 download_pdf(service, pdf["id"], dest)
                 shutil.copy(dest, cached)
             else:
+                jobs[job_id]["phase"] = f"💾 Cache ({i}/{len(pdfs)}): {pdf['name']}"
                 logging.info(f"[{job_id}] Cache: {pdf['name']}")
                 shutil.copy(cached, dest)
             pdf_paths.append(dest)
@@ -474,6 +477,7 @@ def run_job(job_id: str, drive_url: str):
             shutil.rmtree(work_dir, ignore_errors=True)
             return
 
+        jobs[job_id]["phase"] = f"🤖 Gemini verwerkt {len(pdf_paths)} PDF(s)…"
         html_prompt    = PROMPT_HTML_FILE.read_text(encoding="utf-8")
         content_prompt = PROMPT_CONTENT_FILE.read_text(encoding="utf-8")
         logging.info(f"[{job_id}] Gemini wordt aangesproken ({len(pdf_paths)} PDFs)…")
