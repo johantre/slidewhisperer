@@ -18,3 +18,5 @@ Je bent een expert in "Educational UI/UX Design" en chemische didactiek. Jouw ta
 Eindig elk hoofdstuk met een "te kennen"-samenvatting:
 - Vat per hoofdstuk de absolute kernpunten samen, zodat niets vergeten wordt voor het examen.
 - Geef expliciet aan welke berekeningen geoefend moeten worden.
+### Header 3
+dit is mijn text.
