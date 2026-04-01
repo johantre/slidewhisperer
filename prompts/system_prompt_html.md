@@ -127,6 +127,18 @@ De `@media print` hoeft niets extra's: als `hide-notities` op `body` staat, zijn
 
 ---
 
+### PRINTKNOP
+
+Voeg bovenaan de pagina (naast de notities-toggle) een printknop toe:
+
+```html
+<button onclick="window.print()" style="float:right;margin-bottom:1rem;padding:.4rem 1rem;cursor:pointer;border:1px solid #ccc;border-radius:6px;background:#fff;font-size:.9rem">🖨️ Afdrukken</button>
+```
+
+CSS: verberg de knop bij afdrukken zelf: `@media print { .notitie-toggle, [onclick="window.print()"] { display: none !important; } }`
+
+---
+
 ### TECHNISCHE CONDITIES
 - **Geen externe files of CDN's** — alles inline HTML/CSS.
 - Alle PDF-links openen in hetzelfde vaste tabblad via `target="pdf-viewer"`.

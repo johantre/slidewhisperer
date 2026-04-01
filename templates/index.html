@@ -581,8 +581,9 @@
         <div class="height-resizer" id="height-resizer"></div>
 
         <div id="preflight-container">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem">
+          <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-bottom:.5rem">
             <button class="btn-sum" onclick="document.getElementById('preflight-frame').contentWindow.print()">🖨️ <span data-i18n="btnPrint">Afdrukken</span></button>
+            <button class="btn-sum" onclick="document.getElementById('preflight-container').style.display='none';document.getElementById('preflight-frame').src=''">✖ <span data-i18n="btnClose">Sluiten</span></button>
           </div>
           <iframe id="preflight-frame"></iframe>
         </div>
@@ -609,6 +610,7 @@
         editorTabHtml:    "⚙️ HTML-opmaak",
         tabHistory:       "📜 Geschiedenis",
         btnPrint:         "Afdrukken",
+        btnClose:         "Sluiten",
         editorPlaceholder:"Prompt wordt geladen…",
         loading:          "Laden…",
         resultsEmpty:     "Nog geen overzichten gegenereerd.",
@@ -658,6 +660,7 @@
         editorTabHtml:    "⚙️ HTML layout",
         tabHistory:       "📜 History",
         btnPrint:         "Print",
+        btnClose:         "Close",
         editorPlaceholder:"Loading prompt…",
         loading:          "Loading…",
         resultsEmpty:     "No overviews generated yet.",
