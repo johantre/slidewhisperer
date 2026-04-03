@@ -155,7 +155,8 @@ slidewhisperer/
 ├── templates/
 │   └── index.html            # Web UI
 ├── prompts/
-│   └── system_prompt.md      # Customisable Gemini prompt (IS in git)
+│   ├── system_prompt_html.md     # HTML layout & structure instructions (in git)
+│   └── system_prompt_content.md  # Summarisation style instructions (in git)
 ├── requirements.txt
 ├── slidewhisperer.service    # systemd unit file
 ├── .env.example              # Template for .env (no real values)
@@ -175,4 +176,26 @@ slidewhisperer/
 | `service_account.json` | ❌ Never | Google Drive credentials |
 | `cache/` | ❌ Never | Downloaded PDFs |
 | `output/` | ❌ Never | Generated HTML + PDFs |
-| `prompts/system_prompt.md` | ✅ Yes | Prompt text, no secrets |
+| `prompts/system_prompt_html.md` | ✅ Yes | HTML layout instructions, no secrets |
+| `prompts/system_prompt_content.md` | ✅ Yes | Summarisation instructions, no secrets |
+
+---
+
+## Future roadmap
+
+SlideWhisperer is a working single-user tool. Below are known limitations and areas for future improvement:
+
+### Authentication & multi-user
+- No built-in login or user accounts — access control currently relies entirely on Cloudflare Access (Google SSO)
+- No per-user isolation of results or prompts
+- No rate limiting on generation requests
+
+### Infrastructure & deployment
+- No CI/CD pipeline — updates are deployed manually via `git pull` + `systemctl restart`
+- No self-hosted runner or container setup (Docker/Compose)
+- Single-server deployment only — no horizontal scaling
+
+### Features
+- PDF only — PPTX and other slide formats are not supported (slide-level deep links don't work outside PDF)
+- No export to other formats (DOCX, Markdown)
+- Prompt history is git-based and local — no cloud backup
