@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 2400px;
+    height: 1260px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .horse {
+    font-size: 320px;
+    line-height: 1;
+    margin-bottom: 48px;
+    font-family: 'Noto Color Emoji', 'Apple Color Emoji', sans-serif;
+  }
+  .title {
+    font-size: 176px;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: -4px;
+    line-height: 1;
+    margin-bottom: 32px;
+    font-family: 'Poppins', sans-serif;
+    white-space: nowrap;
+  }
+  .tagline {
+    color: #64748b;
+    font-weight: 400;
+    font-family: 'Poppins', sans-serif;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+  <div class="horse">🐴</div>
+  <div class="title" id="title">SlideWhisperer</div>
+  <div class="tagline" id="tagline">Tames wild PDF slides into something your brain actually gets.</div>
+  <script>
+    window.addEventListener('load', () => {
+      const title = document.getElementById('title');
+      const tagline = document.getElementById('tagline');
+      const targetWidth = title.getBoundingClientRect().width;
+
+      let lo = 10, hi = 120;
+      while (hi - lo > 0.5) {
+        const mid = (lo + hi) / 2;
+        tagline.style.fontSize = mid + 'px';
+        if (tagline.getBoundingClientRect().width > targetWidth) {
+          hi = mid;
+        } else {
+          lo = mid;
+        }
+      }
+      tagline.style.fontSize = lo + 'px';
+    });
+  </script>
+</body>
+</html>
